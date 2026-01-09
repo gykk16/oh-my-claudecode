@@ -851,7 +851,392 @@ CMD_EOF
 
 echo -e "${GREEN}✓ Installed 12 slash commands${NC}"
 
-echo -e "${BLUE}[5/5]${NC} Creating CLAUDE.md with Sisyphus system prompt..."
+echo -e "${BLUE}[5/7]${NC} Installing skills..."
+mkdir -p "$CLAUDE_CONFIG_DIR/skills/ultrawork"
+mkdir -p "$CLAUDE_CONFIG_DIR/skills/git-master"
+mkdir -p "$CLAUDE_CONFIG_DIR/skills/frontend-ui-ux"
+
+# Ultrawork skill
+cat > "$CLAUDE_CONFIG_DIR/skills/ultrawork/SKILL.md" << 'SKILL_EOF'
+---
+name: ultrawork
+description: Activate maximum performance mode with parallel agent orchestration
+---
+
+# Ultrawork Skill
+
+Activates maximum performance mode with parallel agent orchestration.
+
+## When Activated
+
+This skill enhances Claude's capabilities by:
+
+1. **Parallel Execution**: Running multiple agents simultaneously for independent tasks
+2. **Aggressive Delegation**: Routing tasks to specialist agents immediately
+3. **Background Operations**: Using `run_in_background: true` for long operations
+4. **Persistence Enforcement**: Never stopping until all tasks are verified complete
+
+## Agent Routing
+
+| Task Type | Agent | Model |
+|-----------|-------|-------|
+| Complex debugging | oracle | Opus |
+| Documentation research | librarian | Sonnet |
+| Quick searches | explore | Haiku |
+| UI/UX work | frontend-engineer | Sonnet |
+| Technical writing | document-writer | Haiku |
+| Visual analysis | multimodal-looker | Sonnet |
+| Plan review | momus | Opus |
+| Pre-planning | metis | Opus |
+| Strategic planning | prometheus | Opus |
+
+## Background Execution Rules
+
+**Run in Background** (set `run_in_background: true`):
+- Package installation: npm install, pip install, cargo build
+- Build processes: npm run build, make, tsc
+- Test suites: npm test, pytest, cargo test
+- Docker operations: docker build, docker pull
+
+**Run Blocking** (foreground):
+- Quick status checks: git status, ls, pwd
+- File reads, edits
+- Simple commands
+
+## Verification Checklist
+
+Before stopping, verify:
+- [ ] TODO LIST: Zero pending/in_progress tasks
+- [ ] FUNCTIONALITY: All requested features work
+- [ ] TESTS: All tests pass (if applicable)
+- [ ] ERRORS: Zero unaddressed errors
+
+**If ANY checkbox is unchecked, CONTINUE WORKING.**
+SKILL_EOF
+
+# Git Master skill
+cat > "$CLAUDE_CONFIG_DIR/skills/git-master/SKILL.md" << 'SKILL_EOF'
+---
+name: git-master
+description: Git expert for atomic commits, rebasing, and history management
+---
+
+# Git Master Skill
+
+You are a Git expert combining three specializations:
+1. **Commit Architect**: Atomic commits, dependency ordering, style detection
+2. **Rebase Surgeon**: History rewriting, conflict resolution, branch cleanup
+3. **History Archaeologist**: Finding when/where specific changes were introduced
+
+## Core Principle: Multiple Commits by Default
+
+**ONE COMMIT = AUTOMATIC FAILURE**
+
+Hard rules:
+- 3+ files changed -> MUST be 2+ commits
+- 5+ files changed -> MUST be 3+ commits
+- 10+ files changed -> MUST be 5+ commits
+
+## Style Detection (First Step)
+
+Before committing, analyze the last 30 commits:
+```bash
+git log -30 --oneline
+git log -30 --pretty=format:"%s"
+```
+
+Detect:
+- **Language**: Korean vs English (use majority)
+- **Style**: SEMANTIC (feat:, fix:) vs PLAIN vs SHORT
+
+## Commit Splitting Rules
+
+| Criterion | Action |
+|-----------|--------|
+| Different directories/modules | SPLIT |
+| Different component types | SPLIT |
+| Can be reverted independently | SPLIT |
+| Different concerns (UI/logic/config/test) | SPLIT |
+| New file vs modification | SPLIT |
+
+## History Search Commands
+
+| Goal | Command |
+|------|---------|
+| When was "X" added? | `git log -S "X" --oneline` |
+| What commits touched "X"? | `git log -G "X" --oneline` |
+| Who wrote line N? | `git blame -L N,N file.py` |
+| When did bug start? | `git bisect start && git bisect bad && git bisect good <tag>` |
+
+## Rebase Safety
+
+- **NEVER** rebase main/master
+- Use `--force-with-lease` (never `--force`)
+- Stash dirty files before rebasing
+SKILL_EOF
+
+# Frontend UI/UX skill
+cat > "$CLAUDE_CONFIG_DIR/skills/frontend-ui-ux/SKILL.md" << 'SKILL_EOF'
+---
+name: frontend-ui-ux
+description: Designer-turned-developer who crafts stunning UI/UX even without design mockups
+---
+
+# Frontend UI/UX Skill
+
+You are a designer who learned to code. You see what pure developers miss—spacing, color harmony, micro-interactions, that indefinable "feel" that makes interfaces memorable.
+
+## Design Process
+
+Before coding, commit to a **BOLD aesthetic direction**:
+
+1. **Purpose**: What problem does this solve? Who uses it?
+2. **Tone**: Pick an extreme:
+   - Brutally minimal
+   - Maximalist chaos
+   - Retro-futuristic
+   - Organic/natural
+   - Luxury/refined
+   - Playful/toy-like
+   - Editorial/magazine
+   - Brutalist/raw
+   - Art deco/geometric
+   - Soft/pastel
+   - Industrial/utilitarian
+3. **Constraints**: Technical requirements (framework, performance, accessibility)
+4. **Differentiation**: What's the ONE thing someone will remember?
+
+## Aesthetic Guidelines
+
+### Typography
+Choose distinctive fonts. **Avoid**: Arial, Inter, Roboto, system fonts, Space Grotesk.
+
+### Color
+Commit to a cohesive palette. Use CSS variables. **Avoid**: purple gradients on white (AI slop).
+
+### Motion
+Focus on high-impact moments. One well-orchestrated page load > scattered micro-interactions. Use CSS-only where possible.
+
+### Spatial Composition
+Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements.
+
+### Visual Details
+Create atmosphere—gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows.
+
+## Anti-Patterns (NEVER)
+
+- Generic fonts (Inter, Roboto, Arial)
+- Cliched color schemes (purple gradients on white)
+- Predictable layouts
+- Cookie-cutter design
+SKILL_EOF
+
+echo -e "${GREEN}✓ Installed 3 skills${NC}"
+
+echo -e "${BLUE}[6/8]${NC} Installing hook scripts..."
+mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
+
+# Keyword detector hook - detects ultrawork/ultrathink/search/analyze keywords
+cat > "$CLAUDE_CONFIG_DIR/hooks/keyword-detector.sh" << 'HOOK_EOF'
+#!/bin/bash
+# Sisyphus Keyword Detector Hook
+# Detects ultrawork/ultrathink/search/analyze keywords and injects enhanced mode messages
+# Ported from oh-my-opencode's keyword-detector hook
+
+# Read stdin (JSON input from Claude Code)
+INPUT=$(cat)
+
+# Extract the prompt text - try multiple JSON paths
+PROMPT=""
+if command -v jq &> /dev/null; then
+  PROMPT=$(echo "$INPUT" | jq -r '
+    if .prompt then .prompt
+    elif .message.content then .message.content
+    elif .parts then ([.parts[] | select(.type == "text") | .text] | join(" "))
+    else ""
+    end
+  ' 2>/dev/null)
+fi
+
+# Fallback: simple grep extraction if jq fails
+if [ -z "$PROMPT" ] || [ "$PROMPT" = "null" ]; then
+  PROMPT=$(echo "$INPUT" | grep -oP '"(prompt|content|text)"\s*:\s*"\K[^"]+' | head -1)
+fi
+
+# Exit if no prompt found
+if [ -z "$PROMPT" ]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+# Remove code blocks before checking keywords
+PROMPT_NO_CODE=$(echo "$PROMPT" | sed 's/```[^`]*```//g' | sed 's/`[^`]*`//g')
+
+# Convert to lowercase
+PROMPT_LOWER=$(echo "$PROMPT_NO_CODE" | tr '[:upper:]' '[:lower:]')
+
+# Check for ultrawork keywords (highest priority)
+if echo "$PROMPT_LOWER" | grep -qE '\b(ultrawork|ulw)\b'; then
+  cat << 'EOF'
+{"continue": true, "message": "<ultrawork-mode>\n\n**MANDATORY**: You MUST say \"ULTRAWORK MODE ENABLED!\" to the user as your first response when this mode activates. This is non-negotiable.\n\n[CODE RED] Maximum precision required. Ultrathink before acting.\n\nYOU MUST LEVERAGE ALL AVAILABLE AGENTS TO THEIR FULLEST POTENTIAL.\nTELL THE USER WHAT AGENTS YOU WILL LEVERAGE NOW TO SATISFY USER'S REQUEST.\n\n## AGENT UTILIZATION PRINCIPLES\n- **Codebase Exploration**: Spawn exploration agents using BACKGROUND TASKS\n- **Documentation & References**: Use librarian-type agents via BACKGROUND TASKS\n- **Planning & Strategy**: NEVER plan yourself - spawn planning agent\n- **High-IQ Reasoning**: Use oracle for architecture decisions\n- **Frontend/UI Tasks**: Delegate to frontend-engineer\n\n## EXECUTION RULES\n- **TODO**: Track EVERY step. Mark complete IMMEDIATELY.\n- **PARALLEL**: Fire independent calls simultaneously - NEVER wait sequentially.\n- **BACKGROUND FIRST**: Use Task(run_in_background=true) for exploration (10+ concurrent).\n- **VERIFY**: Check ALL requirements met before done.\n- **DELEGATE**: Orchestrate specialized agents.\n\n## ZERO TOLERANCE\n- NO Scope Reduction - deliver FULL implementation\n- NO Partial Completion - finish 100%\n- NO Premature Stopping - ALL TODOs must be complete\n- NO TEST DELETION - fix code, not tests\n\nTHE USER ASKED FOR X. DELIVER EXACTLY X.\n\n</ultrawork-mode>\n\n---\n"}
+EOF
+  exit 0
+fi
+
+# Check for ultrathink/think keywords
+if echo "$PROMPT_LOWER" | grep -qE '\b(ultrathink|think)\b'; then
+  cat << 'EOF'
+{"continue": true, "message": "<think-mode>\n\n**ULTRATHINK MODE ENABLED** - Extended reasoning activated.\n\nYou are now in deep thinking mode. Take your time to:\n1. Thoroughly analyze the problem from multiple angles\n2. Consider edge cases and potential issues\n3. Think through the implications of each approach\n4. Reason step-by-step before acting\n\nUse your extended thinking capabilities to provide the most thorough and well-reasoned response.\n\n</think-mode>\n\n---\n"}
+EOF
+  exit 0
+fi
+
+# Check for search keywords
+if echo "$PROMPT_LOWER" | grep -qE '\b(search|find|locate|lookup|explore|discover|scan|grep|query|browse|detect|trace|seek|track|pinpoint|hunt)\b|where\s+is|show\s+me|list\s+all'; then
+  cat << 'EOF'
+{"continue": true, "message": "<search-mode>\nMAXIMIZE SEARCH EFFORT. Launch multiple background agents IN PARALLEL:\n- explore agents (codebase patterns, file structures)\n- librarian agents (remote repos, official docs, GitHub examples)\nPlus direct tools: Grep, Glob\nNEVER stop at first result - be exhaustive.\n</search-mode>\n\n---\n"}
+EOF
+  exit 0
+fi
+
+# Check for analyze keywords
+if echo "$PROMPT_LOWER" | grep -qE '\b(analyze|analyse|investigate|examine|research|study|deep.?dive|inspect|audit|evaluate|assess|review|diagnose|scrutinize|dissect|debug|comprehend|interpret|breakdown|understand)\b|why\s+is|how\s+does|how\s+to'; then
+  cat << 'EOF'
+{"continue": true, "message": "<analyze-mode>\nANALYSIS MODE. Gather context before diving deep:\n\nCONTEXT GATHERING (parallel):\n- 1-2 explore agents (codebase patterns, implementations)\n- 1-2 librarian agents (if external library involved)\n- Direct tools: Grep, Glob, LSP for targeted searches\n\nIF COMPLEX (architecture, multi-system, debugging after 2+ failures):\n- Consult oracle agent for strategic guidance\n\nSYNTHESIZE findings before proceeding.\n</analyze-mode>\n\n---\n"}
+EOF
+  exit 0
+fi
+
+# No keywords detected
+echo '{"continue": true}'
+exit 0
+HOOK_EOF
+chmod +x "$CLAUDE_CONFIG_DIR/hooks/keyword-detector.sh"
+
+# Stop continuation hook - enforces todo completion
+cat > "$CLAUDE_CONFIG_DIR/hooks/stop-continuation.sh" << 'HOOK_EOF'
+#!/bin/bash
+# Sisyphus Stop Continuation Hook
+# Checks for incomplete todos and injects continuation prompt
+# Ported from oh-my-opencode's todo-continuation-enforcer
+
+# Read stdin
+INPUT=$(cat)
+
+# Check for incomplete todos in the Claude todos directory
+TODOS_DIR="$HOME/.claude/todos"
+if [ -d "$TODOS_DIR" ]; then
+  INCOMPLETE_COUNT=0
+  for todo_file in "$TODOS_DIR"/*.json; do
+    if [ -f "$todo_file" ]; then
+      if command -v jq &> /dev/null; then
+        COUNT=$(jq '[.[] | select(.status != "completed" and .status != "cancelled")] | length' "$todo_file" 2>/dev/null || echo "0")
+        INCOMPLETE_COUNT=$((INCOMPLETE_COUNT + COUNT))
+      fi
+    fi
+  done
+
+  if [ "$INCOMPLETE_COUNT" -gt 0 ]; then
+    cat << EOF
+{"continue": false, "reason": "[SYSTEM REMINDER - TODO CONTINUATION]\n\nIncomplete tasks remain in your todo list ($INCOMPLETE_COUNT remaining). Continue working on the next pending task.\n\n- Proceed without asking for permission\n- Mark each task complete when finished\n- Do not stop until all tasks are done"}
+EOF
+    exit 0
+  fi
+fi
+
+# No incomplete todos - allow stop
+echo '{"continue": true}'
+exit 0
+HOOK_EOF
+chmod +x "$CLAUDE_CONFIG_DIR/hooks/stop-continuation.sh"
+
+echo -e "${GREEN}✓ Installed 2 hook scripts${NC}"
+
+echo -e "${BLUE}[7/8]${NC} Configuring hooks in settings.json..."
+
+# Backup existing settings if present
+SETTINGS_FILE="$CLAUDE_CONFIG_DIR/settings.json"
+if [ -f "$SETTINGS_FILE" ]; then
+  cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
+fi
+
+# Create or update settings.json with hooks
+if command -v jq &> /dev/null; then
+  # Use jq if available for proper JSON handling
+  if [ -f "$SETTINGS_FILE" ]; then
+    EXISTING=$(cat "$SETTINGS_FILE")
+  else
+    EXISTING='{}'
+  fi
+
+  # Add hooks configuration
+  HOOKS_CONFIG='{
+    "hooks": {
+      "UserPromptSubmit": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash $HOME/.claude/hooks/keyword-detector.sh"
+            }
+          ]
+        }
+      ],
+      "Stop": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash $HOME/.claude/hooks/stop-continuation.sh"
+            }
+          ]
+        }
+      ]
+    }
+  }'
+
+  # Merge: add hooks if not present
+  echo "$EXISTING" | jq --argjson hooks "$HOOKS_CONFIG" '
+    if .hooks then . else . + $hooks end
+  ' > "$SETTINGS_FILE"
+  echo -e "${GREEN}✓ Hooks configured in settings.json${NC}"
+else
+  # Fallback: create basic settings if jq not available
+  if [ ! -f "$SETTINGS_FILE" ]; then
+    cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/keyword-detector.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/stop-continuation.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS_EOF
+    echo -e "${GREEN}✓ Created settings.json with hooks${NC}"
+  else
+    echo -e "${YELLOW}⚠ settings.json exists, hooks may need manual configuration${NC}"
+    echo -e "${YELLOW}  Run /hooks in Claude Code to configure${NC}"
+  fi
+fi
+
+echo -e "${BLUE}[8/8]${NC} Creating CLAUDE.md with Sisyphus system prompt..."
 
 # Only create if it doesn't exist in home directory
 if [ ! -f "$HOME/CLAUDE.md" ]; then
@@ -948,7 +1333,7 @@ else
 fi
 
 # Save version metadata for auto-update system
-VERSION="1.2.0"
+VERSION="1.4.0"
 VERSION_FILE="$CLAUDE_CONFIG_DIR/.sisyphus-version.json"
 
 cat > "$VERSION_FILE" << VERSION_EOF
@@ -992,6 +1377,15 @@ echo "  metis               - Pre-planning analysis (Opus)"
 echo "  orchestrator-sisyphus - Todo coordination (Sonnet)"
 echo "  sisyphus-junior     - Focused execution (Sonnet)"
 echo "  prometheus          - Strategic planning (Opus)"
+echo ""
+echo -e "${YELLOW}Available Skills (via Skill tool):${NC}"
+echo "  ultrawork           - Maximum performance mode"
+echo "  git-master          - Git commit, rebase, and history expert"
+echo "  frontend-ui-ux      - Designer-developer for stunning UI/UX"
+echo ""
+echo -e "${YELLOW}Hooks:${NC}"
+echo "  Configure hooks via /hooks command in Claude Code"
+echo "  Hooks directory: ~/.claude/hooks/"
 echo ""
 echo -e "${YELLOW}Updating:${NC}"
 echo "  /update                       # Check for and install updates"

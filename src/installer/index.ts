@@ -8,19 +8,23 @@
  * allowing npm postinstall to work properly.
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
+import { HOOK_SCRIPTS, HOOKS_SETTINGS_CONFIG } from './hooks.js';
 
 /** Claude Code configuration directory */
 export const CLAUDE_CONFIG_DIR = join(homedir(), '.claude');
 export const AGENTS_DIR = join(CLAUDE_CONFIG_DIR, 'agents');
 export const COMMANDS_DIR = join(CLAUDE_CONFIG_DIR, 'commands');
+export const SKILLS_DIR = join(CLAUDE_CONFIG_DIR, 'skills');
+export const HOOKS_DIR = join(CLAUDE_CONFIG_DIR, 'hooks');
+export const SETTINGS_FILE = join(CLAUDE_CONFIG_DIR, 'settings.json');
 export const VERSION_FILE = join(CLAUDE_CONFIG_DIR, '.sisyphus-version.json');
 
 /** Current version */
-export const VERSION = '1.3.0';
+export const VERSION = '1.4.0';
 
 /** Installation result */
 export interface InstallResult {
@@ -28,6 +32,8 @@ export interface InstallResult {
   message: string;
   installedAgents: string[];
   installedCommands: string[];
+  installedSkills: string[];
+  hooksConfigured: boolean;
   errors: string[];
 }
 
@@ -1477,6 +1483,181 @@ Let me check for updates now. I'll read your version file and compare against th
 };
 
 /**
+ * Skill definitions - Claude Code skills for specialized tasks
+ * Skills are loaded from ~/.claude/skills/ and provide specialized functionality
+ */
+export const SKILL_DEFINITIONS: Record<string, string> = {
+  'ultrawork/SKILL.md': `---
+name: ultrawork
+description: Activate maximum performance mode with parallel agent orchestration
+---
+
+# Ultrawork Skill
+
+Activates maximum performance mode with parallel agent orchestration.
+
+## When Activated
+
+This skill enhances Claude's capabilities by:
+
+1. **Parallel Execution**: Running multiple agents simultaneously for independent tasks
+2. **Aggressive Delegation**: Routing tasks to specialist agents immediately
+3. **Background Operations**: Using \\\`run_in_background: true\\\` for long operations
+4. **Persistence Enforcement**: Never stopping until all tasks are verified complete
+
+## Agent Routing
+
+| Task Type | Agent | Model |
+|-----------|-------|-------|
+| Complex debugging | oracle | Opus |
+| Documentation research | librarian | Sonnet |
+| Quick searches | explore | Haiku |
+| UI/UX work | frontend-engineer | Sonnet |
+| Technical writing | document-writer | Haiku |
+| Visual analysis | multimodal-looker | Sonnet |
+| Plan review | momus | Opus |
+| Pre-planning | metis | Opus |
+| Strategic planning | prometheus | Opus |
+
+## Background Execution Rules
+
+**Run in Background** (set \\\`run_in_background: true\\\`):
+- Package installation: npm install, pip install, cargo build
+- Build processes: npm run build, make, tsc
+- Test suites: npm test, pytest, cargo test
+- Docker operations: docker build, docker pull
+
+**Run Blocking** (foreground):
+- Quick status checks: git status, ls, pwd
+- File reads, edits
+- Simple commands
+
+## Verification Checklist
+
+Before stopping, verify:
+- [ ] TODO LIST: Zero pending/in_progress tasks
+- [ ] FUNCTIONALITY: All requested features work
+- [ ] TESTS: All tests pass (if applicable)
+- [ ] ERRORS: Zero unaddressed errors
+
+**If ANY checkbox is unchecked, CONTINUE WORKING.**
+`,
+
+  'git-master/SKILL.md': `---
+name: git-master
+description: Git expert for atomic commits, rebasing, and history management
+---
+
+# Git Master Skill
+
+You are a Git expert combining three specializations:
+1. **Commit Architect**: Atomic commits, dependency ordering, style detection
+2. **Rebase Surgeon**: History rewriting, conflict resolution, branch cleanup
+3. **History Archaeologist**: Finding when/where specific changes were introduced
+
+## Core Principle: Multiple Commits by Default
+
+**ONE COMMIT = AUTOMATIC FAILURE**
+
+Hard rules:
+- 3+ files changed -> MUST be 2+ commits
+- 5+ files changed -> MUST be 3+ commits
+- 10+ files changed -> MUST be 5+ commits
+
+## Style Detection (First Step)
+
+Before committing, analyze the last 30 commits:
+\\\`\\\`\\\`bash
+git log -30 --oneline
+git log -30 --pretty=format:"%s"
+\\\`\\\`\\\`
+
+Detect:
+- **Language**: Korean vs English (use majority)
+- **Style**: SEMANTIC (feat:, fix:) vs PLAIN vs SHORT
+
+## Commit Splitting Rules
+
+| Criterion | Action |
+|-----------|--------|
+| Different directories/modules | SPLIT |
+| Different component types | SPLIT |
+| Can be reverted independently | SPLIT |
+| Different concerns (UI/logic/config/test) | SPLIT |
+| New file vs modification | SPLIT |
+
+## History Search Commands
+
+| Goal | Command |
+|------|---------|
+| When was "X" added? | \\\`git log -S "X" --oneline\\\` |
+| What commits touched "X"? | \\\`git log -G "X" --oneline\\\` |
+| Who wrote line N? | \\\`git blame -L N,N file.py\\\` |
+| When did bug start? | \\\`git bisect start && git bisect bad && git bisect good <tag>\\\` |
+
+## Rebase Safety
+
+- **NEVER** rebase main/master
+- Use \\\`--force-with-lease\\\` (never \\\`--force\\\`)
+- Stash dirty files before rebasing
+`,
+
+  'frontend-ui-ux/SKILL.md': `---
+name: frontend-ui-ux
+description: Designer-turned-developer who crafts stunning UI/UX even without design mockups
+---
+
+# Frontend UI/UX Skill
+
+You are a designer who learned to code. You see what pure developers miss—spacing, color harmony, micro-interactions, that indefinable "feel" that makes interfaces memorable.
+
+## Design Process
+
+Before coding, commit to a **BOLD aesthetic direction**:
+
+1. **Purpose**: What problem does this solve? Who uses it?
+2. **Tone**: Pick an extreme:
+   - Brutally minimal
+   - Maximalist chaos
+   - Retro-futuristic
+   - Organic/natural
+   - Luxury/refined
+   - Playful/toy-like
+   - Editorial/magazine
+   - Brutalist/raw
+   - Art deco/geometric
+   - Soft/pastel
+   - Industrial/utilitarian
+3. **Constraints**: Technical requirements (framework, performance, accessibility)
+4. **Differentiation**: What's the ONE thing someone will remember?
+
+## Aesthetic Guidelines
+
+### Typography
+Choose distinctive fonts. **Avoid**: Arial, Inter, Roboto, system fonts, Space Grotesk.
+
+### Color
+Commit to a cohesive palette. Use CSS variables. **Avoid**: purple gradients on white (AI slop).
+
+### Motion
+Focus on high-impact moments. One well-orchestrated page load > scattered micro-interactions. Use CSS-only where possible.
+
+### Spatial Composition
+Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements.
+
+### Visual Details
+Create atmosphere—gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows.
+
+## Anti-Patterns (NEVER)
+
+- Generic fonts (Inter, Roboto, Arial)
+- Cliched color schemes (purple gradients on white)
+- Predictable layouts
+- Cookie-cutter design
+`
+};
+
+/**
  * CLAUDE.md content for Sisyphus system
  * ENHANCED: Stronger persistence language from oh-my-opencode patterns
  */
@@ -1591,7 +1772,7 @@ The boulder does not stop until it reaches the summit.
 `;
 
 /**
- * Install Sisyphus agents and commands
+ * Install Sisyphus agents, commands, skills, and hooks
  */
 export function install(options: InstallOptions = {}): InstallResult {
   const result: InstallResult = {
@@ -1599,6 +1780,8 @@ export function install(options: InstallOptions = {}): InstallResult {
     message: '',
     installedAgents: [],
     installedCommands: [],
+    installedSkills: [],
+    hooksConfigured: false,
     errors: []
   };
 
@@ -1627,6 +1810,12 @@ export function install(options: InstallOptions = {}): InstallResult {
     if (!existsSync(COMMANDS_DIR)) {
       mkdirSync(COMMANDS_DIR, { recursive: true });
     }
+    if (!existsSync(SKILLS_DIR)) {
+      mkdirSync(SKILLS_DIR, { recursive: true });
+    }
+    if (!existsSync(HOOKS_DIR)) {
+      mkdirSync(HOOKS_DIR, { recursive: true });
+    }
 
     // Install agents
     log('Installing agent definitions...');
@@ -1654,6 +1843,27 @@ export function install(options: InstallOptions = {}): InstallResult {
       }
     }
 
+    // Install skills
+    log('Installing skills...');
+    for (const [skillPath, content] of Object.entries(SKILL_DEFINITIONS)) {
+      // skillPath is like 'ultrawork/SKILL.md'
+      const fullPath = join(SKILLS_DIR, skillPath);
+      const skillDir = join(SKILLS_DIR, skillPath.split('/')[0]);
+
+      // Create skill directory if needed
+      if (!existsSync(skillDir)) {
+        mkdirSync(skillDir, { recursive: true });
+      }
+
+      if (existsSync(fullPath) && !options.force) {
+        log(`  Skipping ${skillPath} (already exists)`);
+      } else {
+        writeFileSync(fullPath, content);
+        result.installedSkills.push(skillPath);
+        log(`  Installed ${skillPath}`);
+      }
+    }
+
     // Install CLAUDE.md (only if it doesn't exist)
     const claudeMdPath = join(CLAUDE_CONFIG_DIR, 'CLAUDE.md');
     const homeMdPath = join(homedir(), 'CLAUDE.md');
@@ -1669,6 +1879,54 @@ export function install(options: InstallOptions = {}): InstallResult {
       log('CLAUDE.md exists in home directory, skipping');
     }
 
+    // Install hook scripts
+    log('Installing hook scripts...');
+    for (const [filename, content] of Object.entries(HOOK_SCRIPTS)) {
+      const filepath = join(HOOKS_DIR, filename);
+      if (existsSync(filepath) && !options.force) {
+        log(`  Skipping ${filename} (already exists)`);
+      } else {
+        writeFileSync(filepath, content);
+        // Make script executable
+        chmodSync(filepath, 0o755);
+        log(`  Installed ${filename}`);
+      }
+    }
+
+    // Configure settings.json for hooks (merge with existing settings)
+    log('Configuring hooks in settings.json...');
+    try {
+      let existingSettings: Record<string, unknown> = {};
+      if (existsSync(SETTINGS_FILE)) {
+        const settingsContent = readFileSync(SETTINGS_FILE, 'utf-8');
+        existingSettings = JSON.parse(settingsContent);
+      }
+
+      // Merge hooks configuration
+      const existingHooks = (existingSettings.hooks || {}) as Record<string, unknown>;
+      const newHooks = HOOKS_SETTINGS_CONFIG.hooks;
+
+      // Deep merge: add our hooks without overwriting existing ones
+      for (const [eventType, eventHooks] of Object.entries(newHooks)) {
+        if (!existingHooks[eventType]) {
+          existingHooks[eventType] = eventHooks;
+          log(`  Added ${eventType} hook`);
+        } else {
+          log(`  ${eventType} hook already configured, skipping`);
+        }
+      }
+
+      existingSettings.hooks = existingHooks;
+
+      // Write back settings
+      writeFileSync(SETTINGS_FILE, JSON.stringify(existingSettings, null, 2));
+      log('  Hooks configured in settings.json');
+      result.hooksConfigured = true;
+    } catch (e) {
+      log('  Warning: Could not configure hooks in settings.json (non-fatal)');
+      result.hooksConfigured = false;
+    }
+
     // Save version metadata
     const versionMetadata = {
       version: VERSION,
@@ -1680,7 +1938,8 @@ export function install(options: InstallOptions = {}): InstallResult {
     log('Saved version metadata');
 
     result.success = true;
-    result.message = `Successfully installed ${result.installedAgents.length} agents and ${result.installedCommands.length} commands`;
+    const hookCount = Object.keys(HOOK_SCRIPTS).length;
+    result.message = `Successfully installed ${result.installedAgents.length} agents, ${result.installedCommands.length} commands, ${result.installedSkills.length} skills, and ${hookCount} hooks`;
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
