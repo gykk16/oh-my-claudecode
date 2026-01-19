@@ -7,8 +7,25 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
+
+// Get the directory of this script to resolve the dist module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const distDir = join(__dirname, '..', 'dist', 'hooks', 'notepad');
+
+// Try to import notepad functions (may fail if not built)
+let setPriorityContext = null;
+let addWorkingMemoryEntry = null;
+try {
+  const notepadModule = await import(join(distDir, 'index.js'));
+  setPriorityContext = notepadModule.setPriorityContext;
+  addWorkingMemoryEntry = notepadModule.addWorkingMemoryEntry;
+} catch {
+  // Notepad module not available - remember tags will be silently ignored
+}
 
 // State file for session tracking
 const STATE_FILE = join(homedir(), '.claude', '.session-stats.json');
@@ -100,6 +117,44 @@ function detectBackgroundOperation(output) {
   ];
 
   return bgPatterns.some(pattern => pattern.test(output));
+}
+
+/**
+ * Process <remember> tags from agent output
+ * <remember>content</remember> -> Working Memory
+ * <remember priority>content</remember> -> Priority Context
+ */
+function processRememberTags(output, directory) {
+  if (!setPriorityContext || !addWorkingMemoryEntry) {
+    return; // Notepad module not available
+  }
+
+  if (!output || !directory) {
+    return;
+  }
+
+  // Process priority remember tags first
+  const priorityRegex = /<remember\s+priority>([\s\S]*?)<\/remember>/gi;
+  let match;
+  while ((match = priorityRegex.exec(output)) !== null) {
+    const content = match[1].trim();
+    if (content) {
+      try {
+        setPriorityContext(directory, content);
+      } catch {}
+    }
+  }
+
+  // Process regular remember tags
+  const regularRegex = /<remember>([\s\S]*?)<\/remember>/gi;
+  while ((match = regularRegex.exec(output)) !== null) {
+    const content = match[1].trim();
+    if (content) {
+      try {
+        addWorkingMemoryEntry(directory, content);
+      } catch {}
+    }
+  }
 }
 
 // Detect write failure
@@ -194,9 +249,15 @@ async function main() {
     const toolName = data.toolName || '';
     const toolOutput = data.toolOutput || '';
     const sessionId = data.sessionId || 'unknown';
+    const directory = data.directory || process.cwd();
 
     // Update session statistics
     const toolCount = updateStats(toolName, sessionId);
+
+    // Process <remember> tags from Task agent output
+    if (toolName === 'Task' || toolName === 'task') {
+      processRememberTags(toolOutput, directory);
+    }
 
     // Generate contextual message
     const message = generateMessage(toolName, toolOutput, sessionId, toolCount);

@@ -1276,6 +1276,245 @@ main();
 `;
 
 // =============================================================================
+// POST-TOOL-USE HOOK (Remember Tag Processing)
+// =============================================================================
+
+/**
+ * Post-Tool-Use Bash script
+ * Processes <remember> tags from Task agent output and saves to notepad.md
+ */
+export const POST_TOOL_USE_SCRIPT = `#!/bin/bash
+# Sisyphus Post-Tool-Use Hook
+# Processes <remember> tags from Task agent output
+# Saves to .sisyphus/notepad.md for compaction-resilient memory
+
+# Read stdin
+INPUT=$(cat)
+
+# Get directory and tool info
+DIRECTORY=""
+TOOL_NAME=""
+TOOL_OUTPUT=""
+if command -v jq &> /dev/null; then
+  DIRECTORY=$(echo "$INPUT" | jq -r '.directory // ""' 2>/dev/null)
+  TOOL_NAME=$(echo "$INPUT" | jq -r '.toolName // ""' 2>/dev/null)
+  TOOL_OUTPUT=$(echo "$INPUT" | jq -r '.toolOutput // ""' 2>/dev/null)
+else
+  # Fallback: use grep/sed for extraction
+  DIRECTORY=$(echo "$INPUT" | grep -oP '"directory"\\s*:\\s*"\\K[^"]+' | head -1)
+  TOOL_NAME=$(echo "$INPUT" | grep -oP '"toolName"\\s*:\\s*"\\K[^"]+' | head -1)
+  TOOL_OUTPUT=$(echo "$INPUT" | grep -oP '"toolOutput"\\s*:\\s*"\\K[^"]+' | head -1)
+fi
+
+if [ -z "$DIRECTORY" ]; then
+  DIRECTORY=$(pwd)
+fi
+
+# Only process Task tool output
+if [ "$TOOL_NAME" != "Task" ] && [ "$TOOL_NAME" != "task" ]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+# Check for <remember> tags
+if ! echo "$TOOL_OUTPUT" | grep -q '<remember'; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+# Create .sisyphus directory if needed
+SISYPHUS_DIR="$DIRECTORY/.sisyphus"
+NOTEPAD_FILE="$SISYPHUS_DIR/notepad.md"
+mkdir -p "$SISYPHUS_DIR" 2>/dev/null
+
+# Initialize notepad.md if it doesn't exist
+if [ ! -f "$NOTEPAD_FILE" ]; then
+  cat > "$NOTEPAD_FILE" << 'NOTEPAD_INIT'
+# Notepad
+<!-- Auto-managed by Sisyphus. Manual edits preserved in MANUAL section. -->
+
+## Priority Context
+<!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->
+
+## Working Memory
+<!-- Session notes. Auto-pruned after 7 days. -->
+
+## MANUAL
+<!-- User content. Never auto-pruned. -->
+NOTEPAD_INIT
+fi
+
+# Process priority remember tags
+PRIORITY_CONTENT=$(echo "$TOOL_OUTPUT" | grep -oP '<remember\\s+priority>\\K[\\s\\S]*?(?=</remember>)' | head -1)
+if [ -n "$PRIORITY_CONTENT" ]; then
+  # Read current notepad
+  NOTEPAD_CONTENT=$(cat "$NOTEPAD_FILE")
+  # Replace Priority Context section
+  NEW_NOTEPAD=$(echo "$NOTEPAD_CONTENT" | sed '/## Priority Context/,/## Working Memory/{
+    /## Priority Context/!{/## Working Memory/!d}
+  }' | sed "/## Priority Context/a\\\\<!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->\\n$PRIORITY_CONTENT")
+  echo "$NEW_NOTEPAD" > "$NOTEPAD_FILE"
+fi
+
+# Process regular remember tags
+while IFS= read -r CONTENT; do
+  if [ -n "$CONTENT" ]; then
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
+    # Append to Working Memory section (before MANUAL)
+    sed -i "/## MANUAL/i\\\\### $TIMESTAMP\\n$CONTENT\\n" "$NOTEPAD_FILE" 2>/dev/null || {
+      # macOS sed fallback
+      sed -i '' "/## MANUAL/i\\\\
+### $TIMESTAMP\\
+$CONTENT\\
+" "$NOTEPAD_FILE"
+    }
+  fi
+done < <(echo "$TOOL_OUTPUT" | grep -oP '<remember>\\K[\\s\\S]*?(?=</remember>)')
+
+echo '{"continue": true}'
+exit 0
+`;
+
+/**
+ * Post-Tool-Use Node.js script
+ * Processes <remember> tags from Task agent output
+ */
+export const POST_TOOL_USE_SCRIPT_NODE = `#!/usr/bin/env node
+// Sisyphus Post-Tool-Use Hook (Node.js)
+// Processes <remember> tags from Task agent output
+// Saves to .sisyphus/notepad.md for compaction-resilient memory
+
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+
+// Constants
+const NOTEPAD_TEMPLATE = '# Notepad\\n' +
+  '<!-- Auto-managed by Sisyphus. Manual edits preserved in MANUAL section. -->\\n\\n' +
+  '## Priority Context\\n' +
+  '<!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->\\n\\n' +
+  '## Working Memory\\n' +
+  '<!-- Session notes. Auto-pruned after 7 days. -->\\n\\n' +
+  '## MANUAL\\n' +
+  '<!-- User content. Never auto-pruned. -->\\n';
+
+// Read all stdin
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+// Initialize notepad.md if needed
+function initNotepad(directory) {
+  const sisyphusDir = join(directory, '.sisyphus');
+  const notepadPath = join(sisyphusDir, 'notepad.md');
+
+  if (!existsSync(sisyphusDir)) {
+    try { mkdirSync(sisyphusDir, { recursive: true }); } catch {}
+  }
+
+  if (!existsSync(notepadPath)) {
+    try { writeFileSync(notepadPath, NOTEPAD_TEMPLATE); } catch {}
+  }
+
+  return notepadPath;
+}
+
+// Set priority context
+function setPriorityContext(notepadPath, content) {
+  try {
+    let notepad = readFileSync(notepadPath, 'utf-8');
+
+    // Find and replace Priority Context section
+    const priorityMatch = notepad.match(/## Priority Context[\\s\\S]*?(?=## Working Memory)/);
+    if (priorityMatch) {
+      const newPriority = '## Priority Context\\n' +
+        '<!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->\\n' +
+        content.trim() + '\\n\\n';
+      notepad = notepad.replace(priorityMatch[0], newPriority);
+      writeFileSync(notepadPath, notepad);
+    }
+  } catch {}
+}
+
+// Add working memory entry
+function addWorkingMemoryEntry(notepadPath, content) {
+  try {
+    let notepad = readFileSync(notepadPath, 'utf-8');
+
+    const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const entry = '### ' + timestamp + '\\n' + content.trim() + '\\n\\n';
+
+    // Insert before MANUAL section
+    const manualIndex = notepad.indexOf('## MANUAL');
+    if (manualIndex !== -1) {
+      notepad = notepad.slice(0, manualIndex) + entry + notepad.slice(manualIndex);
+      writeFileSync(notepadPath, notepad);
+    }
+  } catch {}
+}
+
+// Process remember tags
+function processRememberTags(output, notepadPath) {
+  if (!output) return;
+
+  // Process priority remember tags
+  const priorityRegex = /<remember\\s+priority>([\\s\\S]*?)<\\/remember>/gi;
+  let match;
+  while ((match = priorityRegex.exec(output)) !== null) {
+    const content = match[1].trim();
+    if (content) {
+      setPriorityContext(notepadPath, content);
+    }
+  }
+
+  // Process regular remember tags
+  const regularRegex = /<remember>([\\s\\S]*?)<\\/remember>/gi;
+  while ((match = regularRegex.exec(output)) !== null) {
+    const content = match[1].trim();
+    if (content) {
+      addWorkingMemoryEntry(notepadPath, content);
+    }
+  }
+}
+
+async function main() {
+  try {
+    const input = await readStdin();
+    const data = JSON.parse(input);
+
+    const toolName = data.toolName || '';
+    const toolOutput = data.toolOutput || '';
+    const directory = data.directory || process.cwd();
+
+    // Only process Task tool output
+    if (toolName !== 'Task' && toolName !== 'task') {
+      console.log(JSON.stringify({ continue: true }));
+      return;
+    }
+
+    // Check for remember tags
+    if (!toolOutput.includes('<remember')) {
+      console.log(JSON.stringify({ continue: true }));
+      return;
+    }
+
+    // Initialize notepad and process tags
+    const notepadPath = initNotepad(directory);
+    processRememberTags(toolOutput, notepadPath);
+
+    console.log(JSON.stringify({ continue: true }));
+  } catch (error) {
+    console.log(JSON.stringify({ continue: true }));
+  }
+}
+
+main();
+`;
+
+// =============================================================================
 // SETTINGS CONFIGURATION (Platform-aware)
 // =============================================================================
 
@@ -1301,6 +1540,16 @@ export const HOOKS_SETTINGS_CONFIG_BASH = {
           {
             type: "command" as const,
             command: "bash $HOME/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    PostToolUse: [
+      {
+        hooks: [
+          {
+            type: "command" as const,
+            command: "bash $HOME/.claude/hooks/post-tool-use.sh"
           }
         ]
       }
@@ -1350,6 +1599,18 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         ]
       }
     ],
+    PostToolUse: [
+      {
+        hooks: [
+          {
+            type: "command" as const,
+            command: isWindows()
+              ? 'node "%USERPROFILE%\\.claude\\hooks\\post-tool-use.mjs"'
+              : 'node "$HOME/.claude/hooks/post-tool-use.mjs"'
+          }
+        ]
+      }
+    ],
     Stop: [
       {
         hooks: [
@@ -1389,7 +1650,8 @@ export const HOOK_SCRIPTS_BASH: Record<string, string> = {
   'keyword-detector.sh': KEYWORD_DETECTOR_SCRIPT,
   'stop-continuation.sh': STOP_CONTINUATION_SCRIPT,
   'persistent-mode.sh': PERSISTENT_MODE_SCRIPT,
-  'session-start.sh': SESSION_START_SCRIPT
+  'session-start.sh': SESSION_START_SCRIPT,
+  'post-tool-use.sh': POST_TOOL_USE_SCRIPT
 };
 
 /**
@@ -1399,7 +1661,8 @@ export const HOOK_SCRIPTS_NODE: Record<string, string> = {
   'keyword-detector.mjs': KEYWORD_DETECTOR_SCRIPT_NODE,
   'stop-continuation.mjs': STOP_CONTINUATION_SCRIPT_NODE,
   'persistent-mode.mjs': PERSISTENT_MODE_SCRIPT_NODE,
-  'session-start.mjs': SESSION_START_SCRIPT_NODE
+  'session-start.mjs': SESSION_START_SCRIPT_NODE,
+  'post-tool-use.mjs': POST_TOOL_USE_SCRIPT_NODE
 };
 
 /**
