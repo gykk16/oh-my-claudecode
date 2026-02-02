@@ -63,8 +63,19 @@ export async function initDb(cwd: string): Promise<boolean> {
   try {
     // Dynamic import of better-sqlite3
     if (!Database) {
-      const betterSqlite3 = await import('better-sqlite3');
-      Database = betterSqlite3.default;
+      try {
+        const betterSqlite3 = await import('better-sqlite3');
+        Database = betterSqlite3.default;
+      } catch (importError) {
+        console.error('Failed to import better-sqlite3. Please install it: npm install better-sqlite3', importError);
+        return false;
+      }
+    }
+
+    // Verify Database was successfully loaded
+    if (!Database) {
+      console.error('Database constructor is null after import');
+      return false;
     }
 
     ensureStateDir(cwd);

@@ -15,6 +15,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { atomicWriteSync } from '../../lib/atomic-write.js';
 import {
   StateLocation,
   StateConfig,
@@ -163,9 +164,9 @@ export function writeState<T = StateData>(
       ensureStateDir(location);
     }
 
-    // Write state
+    // Write state atomically
     const content = JSON.stringify(data, null, 2);
-    fs.writeFileSync(statePath, content, 'utf-8');
+    atomicWriteSync(statePath, content);
 
     return {
       success: true,

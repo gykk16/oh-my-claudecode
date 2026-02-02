@@ -12,6 +12,7 @@ const SESSION_STATS_FILE = path.join(homedir(), '.omc', 'state', 'session-token-
 export class TokenTracker {
   private currentSessionId: string;
   private sessionStats: SessionTokenStats;
+  private recordMutex: Promise<void> = Promise.resolve();
 
   constructor(sessionId?: string, skipRestore?: boolean) {
     this.currentSessionId = sessionId || this.generateSessionId();
@@ -46,21 +47,27 @@ export class TokenTracker {
   }
 
   async recordTokenUsage(usage: Omit<TokenUsage, 'sessionId' | 'timestamp'>): Promise<void> {
-    const record: TokenUsage = {
-      ...usage,
-      modelName: normalizeModelName(usage.modelName), // Bug #15: normalize model names
-      sessionId: this.currentSessionId,
-      timestamp: new Date().toISOString()
-    };
+    // Serialize all recordTokenUsage calls using mutex to prevent state corruption
+    this.recordMutex = this.recordMutex.then(async () => {
+      const record: TokenUsage = {
+        ...usage,
+        modelName: normalizeModelName(usage.modelName), // Bug #15: normalize model names
+        sessionId: this.currentSessionId,
+        timestamp: new Date().toISOString()
+      };
 
-    // Append to JSONL log (append-only for performance)
-    await this.appendToLog(record);
+      // Append to JSONL log (append-only for performance)
+      await this.appendToLog(record);
 
-    // Update session stats
-    this.updateSessionStats(record);
+      // Update session stats
+      this.updateSessionStats(record);
 
-    // Persist session stats
-    await this.saveSessionStats();
+      // Persist session stats
+      await this.saveSessionStats();
+    });
+
+    // Wait for this operation to complete
+    await this.recordMutex;
   }
 
   private async appendToLog(record: TokenUsage): Promise<void> {

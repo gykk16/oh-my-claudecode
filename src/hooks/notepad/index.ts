@@ -25,6 +25,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { atomicWriteSync } from '../../lib/atomic-write.js';
 
 // ============================================================================
 // Types
@@ -252,7 +253,7 @@ export function setPriorityContext(
   notepadContent = replaceSection(notepadContent, PRIORITY_HEADER, content);
 
   try {
-    writeFileSync(notepadPath, notepadContent);
+    atomicWriteSync(notepadPath, notepadContent);
     return { success: true, warning };
   } catch {
     return { success: false };
@@ -288,7 +289,7 @@ export function addWorkingMemoryEntry(directory: string, content: string): boole
   notepadContent = replaceSection(notepadContent, WORKING_MEMORY_HEADER, updatedMemory);
 
   try {
-    writeFileSync(notepadPath, notepadContent);
+    atomicWriteSync(notepadPath, notepadContent);
     return true;
   } catch {
     return false;
@@ -322,7 +323,7 @@ export function addManualEntry(directory: string, content: string): boolean {
   notepadContent = replaceSection(notepadContent, MANUAL_HEADER, updatedManual);
 
   try {
-    writeFileSync(notepadPath, notepadContent);
+    atomicWriteSync(notepadPath, notepadContent);
     return true;
   } catch {
     return false;
@@ -384,7 +385,7 @@ export function pruneOldEntries(
   notepadContent = replaceSection(notepadContent, WORKING_MEMORY_HEADER, newContent);
 
   try {
-    writeFileSync(notepadPath, notepadContent);
+    atomicWriteSync(notepadPath, notepadContent);
     return { pruned, remaining: kept.length };
   } catch {
     return { pruned: 0, remaining: entries.length };
