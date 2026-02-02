@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { join } from 'path';
 
-const HOOK_PATH = join(__dirname, '../../../templates/hooks/persistent-mode.mjs');
+const HOOK_PATH = join(__dirname, '../../../../templates/hooks/persistent-mode.mjs');
 const TIMEOUT_MS = 3000;
 
 describe('persistent-mode hook error handling (issue #319)', () => {
