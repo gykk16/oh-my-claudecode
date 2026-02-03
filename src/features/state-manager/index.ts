@@ -12,10 +12,10 @@
  * - State cleanup utilities
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { atomicWriteSync } from '../../lib/atomic-write.js';
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { atomicWriteJsonSync } from "../../lib/atomic-write.js";
 import {
   StateLocation,
   StateConfig,
@@ -28,38 +28,39 @@ import {
   CleanupOptions,
   CleanupResult,
   StateData,
-  DEFAULT_STATE_CONFIG
-} from './types.js';
+  DEFAULT_STATE_CONFIG,
+} from "./types.js";
 
 // Standard state directories
-const LOCAL_STATE_DIR = '.omc/state';
+const LOCAL_STATE_DIR = ".omc/state";
 /**
  * @deprecated for mode state. Global state directory is only used for analytics and daemon state.
  * Mode state should use LOCAL_STATE_DIR exclusively.
  */
-const GLOBAL_STATE_DIR = path.join(os.homedir(), '.omc', 'state');
+const GLOBAL_STATE_DIR = path.join(os.homedir(), ".omc", "state");
 
 // Legacy state locations (for backward compatibility)
 const LEGACY_LOCATIONS: Record<string, string[]> = {
-  'boulder': ['.omc/boulder.json'],
-  'autopilot': ['.omc/autopilot-state.json'],
-  'autopilot-state': ['.omc/autopilot-state.json'],
-  'ralph': ['.omc/ralph-state.json'],
-  'ralph-state': ['.omc/ralph-state.json'],
-  'ralph-verification': ['.omc/ralph-verification.json'],
-  'ultrawork': ['.omc/ultrawork-state.json'],
-  'ultrawork-state': ['.omc/ultrawork-state.json'],
-  'ultraqa': ['.omc/ultraqa-state.json'],
-  'ultraqa-state': ['.omc/ultraqa-state.json'],
-  'hud-state': ['.omc/hud-state.json'],
-  'prd': ['.omc/prd.json']
+  boulder: [".omc/boulder.json"],
+  autopilot: [".omc/autopilot-state.json"],
+  "autopilot-state": [".omc/autopilot-state.json"],
+  ralph: [".omc/ralph-state.json"],
+  "ralph-state": [".omc/ralph-state.json"],
+  "ralph-verification": [".omc/ralph-verification.json"],
+  ultrawork: [".omc/ultrawork-state.json"],
+  "ultrawork-state": [".omc/ultrawork-state.json"],
+  ultraqa: [".omc/ultraqa-state.json"],
+  "ultraqa-state": [".omc/ultraqa-state.json"],
+  "hud-state": [".omc/hud-state.json"],
+  prd: [".omc/prd.json"],
 };
 
 /**
  * Get the standard path for a state file
  */
 export function getStatePath(name: string, location: StateLocation): string {
-  const baseDir = location === StateLocation.LOCAL ? LOCAL_STATE_DIR : GLOBAL_STATE_DIR;
+  const baseDir =
+    location === StateLocation.LOCAL ? LOCAL_STATE_DIR : GLOBAL_STATE_DIR;
   return path.join(baseDir, `${name}.json`);
 }
 
@@ -74,7 +75,8 @@ export function getLegacyPaths(name: string): string[] {
  * Ensure state directory exists
  */
 export function ensureStateDir(location: StateLocation): void {
-  const dir = location === StateLocation.LOCAL ? LOCAL_STATE_DIR : GLOBAL_STATE_DIR;
+  const dir =
+    location === StateLocation.LOCAL ? LOCAL_STATE_DIR : GLOBAL_STATE_DIR;
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -89,7 +91,7 @@ export function ensureStateDir(location: StateLocation): void {
 export function readState<T = StateData>(
   name: string,
   location: StateLocation = StateLocation.LOCAL,
-  options?: { checkLegacy?: boolean }
+  options?: { checkLegacy?: boolean },
 ): StateReadResult<T> {
   const checkLegacy = options?.checkLegacy ?? DEFAULT_STATE_CONFIG.checkLegacy;
   const standardPath = getStatePath(name, location);
@@ -98,13 +100,13 @@ export function readState<T = StateData>(
   // Try standard location first
   if (fs.existsSync(standardPath)) {
     try {
-      const content = fs.readFileSync(standardPath, 'utf-8');
+      const content = fs.readFileSync(standardPath, "utf-8");
       const data = JSON.parse(content) as T;
       return {
         exists: true,
         data,
         foundAt: standardPath,
-        legacyLocations: []
+        legacyLocations: [],
       };
     } catch (error) {
       // Invalid JSON or read error - treat as not found
@@ -122,16 +124,19 @@ export function readState<T = StateData>(
 
       if (fs.existsSync(resolvedPath)) {
         try {
-          const content = fs.readFileSync(resolvedPath, 'utf-8');
+          const content = fs.readFileSync(resolvedPath, "utf-8");
           const data = JSON.parse(content) as T;
           return {
             exists: true,
             data,
             foundAt: resolvedPath,
-            legacyLocations: legacyPaths
+            legacyLocations: legacyPaths,
           };
         } catch (error) {
-          console.warn(`Failed to read legacy state from ${resolvedPath}:`, error);
+          console.warn(
+            `Failed to read legacy state from ${resolvedPath}:`,
+            error,
+          );
         }
       }
     }
@@ -139,7 +144,7 @@ export function readState<T = StateData>(
 
   return {
     exists: false,
-    legacyLocations: checkLegacy ? legacyPaths : []
+    legacyLocations: checkLegacy ? legacyPaths : [],
   };
 }
 
@@ -153,7 +158,7 @@ export function writeState<T = StateData>(
   name: string,
   data: T,
   location: StateLocation = StateLocation.LOCAL,
-  options?: { createDirs?: boolean }
+  options?: { createDirs?: boolean },
 ): StateWriteResult {
   const createDirs = options?.createDirs ?? DEFAULT_STATE_CONFIG.createDirs;
   const statePath = getStatePath(name, location);
@@ -164,19 +169,17 @@ export function writeState<T = StateData>(
       ensureStateDir(location);
     }
 
-    // Write state atomically
-    const content = JSON.stringify(data, null, 2);
-    atomicWriteSync(statePath, content);
+    atomicWriteJsonSync(statePath, data);
 
     return {
       success: true,
-      path: statePath
+      path: statePath,
     };
   } catch (error) {
     return {
       success: false,
       path: statePath,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -189,12 +192,12 @@ export function writeState<T = StateData>(
  */
 export function clearState(
   name: string,
-  location?: StateLocation
+  location?: StateLocation,
 ): StateClearResult {
   const result: StateClearResult = {
     removed: [],
     notFound: [],
-    errors: []
+    errors: [],
   };
 
   // Determine which locations to check
@@ -215,7 +218,7 @@ export function clearState(
     } catch (error) {
       result.errors.push({
         path: standardPath,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -237,7 +240,7 @@ export function clearState(
     } catch (error) {
       result.errors.push({
         path: resolvedPath,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -253,13 +256,13 @@ export function clearState(
  */
 export function migrateState(
   name: string,
-  location: StateLocation = StateLocation.LOCAL
+  location: StateLocation = StateLocation.LOCAL,
 ): StateMigrationResult {
   // Check if already in standard location
   const standardPath = getStatePath(name, location);
   if (fs.existsSync(standardPath)) {
     return {
-      migrated: false
+      migrated: false,
     };
   }
 
@@ -268,7 +271,7 @@ export function migrateState(
   if (!readResult.exists || !readResult.foundAt || !readResult.data) {
     return {
       migrated: false,
-      error: 'No legacy state found'
+      error: "No legacy state found",
     };
   }
 
@@ -276,7 +279,7 @@ export function migrateState(
   const isLegacy = readResult.foundAt !== standardPath;
   if (!isLegacy) {
     return {
-      migrated: false
+      migrated: false,
     };
   }
 
@@ -285,7 +288,7 @@ export function migrateState(
   if (!writeResult.success) {
     return {
       migrated: false,
-      error: `Failed to write to standard location: ${writeResult.error}`
+      error: `Failed to write to standard location: ${writeResult.error}`,
     };
   }
 
@@ -294,13 +297,16 @@ export function migrateState(
     fs.unlinkSync(readResult.foundAt);
   } catch (error) {
     // Migration succeeded but cleanup failed - not critical
-    console.warn(`Failed to delete legacy state at ${readResult.foundAt}:`, error);
+    console.warn(
+      `Failed to delete legacy state at ${readResult.foundAt}:`,
+      error,
+    );
   }
 
   return {
     migrated: true,
     from: readResult.foundAt,
-    to: writeResult.path
+    to: writeResult.path,
   };
 }
 
@@ -318,18 +324,22 @@ export function listStates(options?: ListStatesOptions): StateFileInfo[] {
   const matchesPattern = (name: string): boolean => {
     if (!pattern) return true;
     // Simple glob: * matches anything
-    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
     return regex.test(name);
   };
 
   // Helper to add state files from a directory
-  const addStatesFromDir = (dir: string, location: StateLocation, isLegacy: boolean = false) => {
+  const addStatesFromDir = (
+    dir: string,
+    location: StateLocation,
+    isLegacy: boolean = false,
+  ) => {
     if (!fs.existsSync(dir)) return;
 
     try {
       const files = fs.readdirSync(dir);
       for (const file of files) {
-        if (!file.endsWith('.json')) continue;
+        if (!file.endsWith(".json")) continue;
 
         const name = file.slice(0, -5); // Remove .json
         if (!matchesPattern(name)) continue;
@@ -343,7 +353,7 @@ export function listStates(options?: ListStatesOptions): StateFileInfo[] {
           location,
           size: stats.size,
           modified: stats.mtime,
-          isLegacy
+          isLegacy,
         });
       }
     } catch (error) {
@@ -384,7 +394,7 @@ export function cleanupOrphanedStates(options?: CleanupOptions): CleanupResult {
     deleted: [],
     wouldDelete: dryRun ? [] : undefined,
     spaceFreed: 0,
-    errors: []
+    errors: [],
   };
 
   const cutoffDate = new Date();
@@ -394,10 +404,12 @@ export function cleanupOrphanedStates(options?: CleanupOptions): CleanupResult {
 
   for (const state of states) {
     // Skip excluded patterns
-    if (exclude.some(pattern => {
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-      return regex.test(state.name);
-    })) {
+    if (
+      exclude.some((pattern) => {
+        const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+        return regex.test(state.name);
+      })
+    ) {
       continue;
     }
 
@@ -418,7 +430,7 @@ export function cleanupOrphanedStates(options?: CleanupOptions): CleanupResult {
       } catch (error) {
         result.errors.push({
           path: state.path,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -435,7 +447,7 @@ export function cleanupOrphanedStates(options?: CleanupOptions): CleanupResult {
 export class StateManager<T = StateData> {
   constructor(
     private name: string,
-    private location: StateLocation = StateLocation.LOCAL
+    private location: StateLocation = StateLocation.LOCAL,
   ) {}
 
   read(options?: { checkLegacy?: boolean }): StateReadResult<T> {
@@ -478,7 +490,7 @@ export class StateManager<T = StateData> {
  */
 export function createStateManager<T = StateData>(
   name: string,
-  location: StateLocation = StateLocation.LOCAL
+  location: StateLocation = StateLocation.LOCAL,
 ): StateManager<T> {
   return new StateManager<T>(name, location);
 }
@@ -494,8 +506,12 @@ export type {
   ListStatesOptions,
   CleanupOptions,
   CleanupResult,
-  StateData
+  StateData,
 };
 
 // Re-export enum, constants, and functions from types
-export { StateLocation, DEFAULT_STATE_CONFIG, isStateLocation } from './types.js';
+export {
+  StateLocation,
+  DEFAULT_STATE_CONFIG,
+  isStateLocation,
+} from "./types.js";
